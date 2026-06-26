@@ -21,6 +21,8 @@ function App() {
     const [affiliateLink, setAffiliateLink] = useState("");
     const [imageFiles, setImageFiles] = useState<File[]>([]);
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    const [uploadedImagePaths, setUploadedImagePaths] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
     const [job, setJob] = useState<VideoJob | null>(null);
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
@@ -31,57 +33,108 @@ function App() {
         return () => window.removeEventListener("resize", onResize);
     }, []);
 
+    useEffect(() => {
+        return () => {
+            previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [previewUrls]);
+
     const s = getStyles(isMobile);
 
     const addLog = (msg: string) => {
         setLogs((old) => [`${new Date().toLocaleTimeString()} - ${msg}`, ...old]);
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        previewUrls.forEach((url) => URL.revokeObjectURL(url));
-        setImageFiles(files);
-        setPreviewUrls(files.map((file) => URL.createObjectURL(file)));
-        addLog(`Đã chọn ${files.length} ảnh`);
-    };
+    const uploadImages = async (files: File[]) => {
+        if (files.length === 0) {
+            return [];
+        }
 
-    const removeImage = (index: number) => {
-        URL.revokeObjectURL(previewUrls[index]);
-        setImageFiles((old) => old.filter((_, i) => i !== index));
-        setPreviewUrls((old) => old.filter((_, i) => i !== index));
-        addLog(`Đã xoá ảnh ${index + 1}`);
-    };
+        setUploading(true);
+        addLog(`Bắt đầu upload ${files.length} ảnh`);
 
-    const clearImages = () => {
-        previewUrls.forEach((url) => URL.revokeObjectURL(url));
-        setImageFiles([]);
-        setPreviewUrls([]);
-        addLog("Đã xoá toàn bộ ảnh");
-    };
+        const formData = new FormData();
 
-    const uploadImages = async () => {
-        const imagePaths: string[] = [];
+        files.forEach((file) => {
+            formData.append("files", file);
+        });
 
-        for (let i = 0; i < imageFiles.length; i++) {
-            const formData = new FormData();
-            formData.append("file", imageFiles[i]);
-
-            addLog(`Upload ảnh ${i + 1}/${imageFiles.length}`);
-
+        try {
             const res = await fetch(`${API}/api/videos/upload`, {
                 method: "POST",
                 body: formData,
             });
 
             if (!res.ok) {
-                throw new Error("Upload ảnh lỗi");
+                throw new Error("Upload ảnh thất bại");
             }
 
             const data = await res.json();
-            imagePaths.push(data.imagePath);
-        }
 
-        return imagePaths;
+            const paths: string[] = data.imagePaths || data.images || [];
+
+            if (paths.length !== files.length) {
+                addLog(`Cảnh báo: chọn ${files.length} ảnh nhưng backend trả ${paths.length} ảnh`);
+            }
+
+            setUploadedImagePaths(paths);
+            addLog(`Upload hoàn tất ${paths.length} ảnh`);
+
+            return paths;
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+
+        previewUrls.forEach((url) => URL.revokeObjectURL(url));
+
+        setImageFiles(files);
+        setPreviewUrls(files.map((file) => URL.createObjectURL(file)));
+        setUploadedImagePaths([]);
+
+        addLog(`Đã chọn ${files.length} ảnh`);
+
+        if (files.length > 0) {
+            try {
+                await uploadImages(files);
+            } catch (err: any) {
+                addLog(err.message || "Upload ảnh lỗi");
+                alert(err.message || "Upload ảnh lỗi");
+            }
+        }
+    };
+
+    const removeImage = async (index: number) => {
+        URL.revokeObjectURL(previewUrls[index]);
+
+        const nextFiles = imageFiles.filter((_, i) => i !== index);
+        const nextPreviewUrls = previewUrls.filter((_, i) => i !== index);
+
+        setImageFiles(nextFiles);
+        setPreviewUrls(nextPreviewUrls);
+        setUploadedImagePaths([]);
+
+        addLog(`Đã xoá ảnh ${index + 1}`);
+
+        if (nextFiles.length > 0) {
+            try {
+                await uploadImages(nextFiles);
+            } catch (err: any) {
+                addLog(err.message || "Upload lại ảnh lỗi");
+                alert(err.message || "Upload lại ảnh lỗi");
+            }
+        }
+    };
+
+    const clearImages = () => {
+        previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        setImageFiles([]);
+        setPreviewUrls([]);
+        setUploadedImagePaths([]);
+        addLog("Đã xoá toàn bộ ảnh");
     };
 
     const createJob = async (imagePaths: string[]) => {
@@ -135,13 +188,22 @@ function App() {
         try {
             if (!productName.trim()) return alert("Nhập tên sản phẩm");
             if (imageFiles.length === 0) return alert("Chọn ít nhất 1 ảnh");
+            if (uploading) return alert("Ảnh đang upload, đợi upload xong đã");
 
             setLoading(true);
             setJob(null);
-            setLogs([]);
 
-            const imagePaths = await uploadImages();
-            addLog("Tạo job video");
+            let imagePaths = uploadedImagePaths;
+
+            if (imagePaths.length !== imageFiles.length) {
+                imagePaths = await uploadImages(imageFiles);
+            }
+
+            if (imagePaths.length === 0) {
+                throw new Error("Chưa upload được ảnh");
+            }
+
+            addLog(`Tạo job video với ${imagePaths.length} ảnh`);
 
             const createdJob = await createJob(imagePaths);
             setJob(createdJob);
@@ -172,15 +234,15 @@ function App() {
 
                     {!isMobile && (
                         <button
-                            disabled={loading}
+                            disabled={loading || uploading}
                             onClick={handleCreateVideo}
                             style={{
                                 ...s.button,
-                                opacity: loading ? 0.55 : 1,
-                                cursor: loading ? "not-allowed" : "pointer",
+                                opacity: loading || uploading ? 0.55 : 1,
+                                cursor: loading || uploading ? "not-allowed" : "pointer",
                             }}
                         >
-                            {loading ? "Đang tạo..." : "🚀 Generate Video"}
+                            {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
                         </button>
                     )}
                 </div>
@@ -225,6 +287,23 @@ function App() {
                                     <span>Preview ảnh</span>
                                     <div style={s.previewActions}>
                                         <span style={s.count}>{previewUrls.length} ảnh</span>
+                                        <span
+                                            style={{
+                                                ...s.count,
+                                                background:
+                                                    uploadedImagePaths.length === previewUrls.length
+                                                        ? "rgba(34,197,94,0.12)"
+                                                        : "rgba(249,115,22,0.12)",
+                                                color:
+                                                    uploadedImagePaths.length === previewUrls.length
+                                                        ? "#86efac"
+                                                        : "#fdba74",
+                                            }}
+                                        >
+                                            {uploading
+                                                ? "Đang upload..."
+                                                : `Đã upload ${uploadedImagePaths.length}`}
+                                        </span>
                                         <button type="button" onClick={clearImages} style={s.clearButton}>
                                             Xoá tất cả
                                         </button>
@@ -251,17 +330,17 @@ function App() {
 
                         {isMobile && (
                             <button
-                                disabled={loading}
+                                disabled={loading || uploading}
                                 onClick={handleCreateVideo}
                                 style={{
                                     ...s.button,
                                     width: "100%",
                                     marginTop: 18,
-                                    opacity: loading ? 0.55 : 1,
-                                    cursor: loading ? "not-allowed" : "pointer",
+                                    opacity: loading || uploading ? 0.55 : 1,
+                                    cursor: loading || uploading ? "not-allowed" : "pointer",
                                 }}
                             >
-                                {loading ? "Đang tạo..." : "🚀 Generate Video"}
+                                {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
                             </button>
                         )}
 
@@ -453,11 +532,13 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             fontSize: 13,
             marginBottom: 10,
             gap: 10,
+            flexWrap: "wrap",
         },
         previewActions: {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            flexWrap: "wrap",
         },
         count: {
             background: "rgba(236,72,153,0.12)",
