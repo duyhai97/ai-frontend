@@ -13,10 +13,23 @@ type VideoJob = {
     error?: string;
 };
 
+type LoginResponse = {
+    token: string;
+    username: string;
+};
+
 function App() {
     const API = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    const [token, setToken] = useState(localStorage.getItem("token") || "");
+    const [username, setUsername] = useState(localStorage.getItem("username") || "");
+    const [loginUsername, setLoginUsername] = useState("admin");
+    const [loginPassword, setLoginPassword] = useState("123456");
+    const [loginLoading, setLoginLoading] = useState(false);
+    const [loginError, setLoginError] = useState("");
+
     const [productName, setProductName] = useState("");
     const [affiliateLink, setAffiliateLink] = useState("");
     const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -45,6 +58,55 @@ function App() {
         setLogs((old) => [`${new Date().toLocaleTimeString()} - ${msg}`, ...old]);
     };
 
+    const authHeaders = () => ({
+        Authorization: `Bearer ${token}`,
+    });
+
+    const handleLogin = async () => {
+        try {
+            setLoginLoading(true);
+            setLoginError("");
+
+            const res = await fetch(`${API}/api/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    username: loginUsername,
+                    password: loginPassword,
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error("Sai tài khoản hoặc mật khẩu");
+            }
+
+            const data = (await res.json()) as LoginResponse;
+
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("username", data.username);
+
+            setToken(data.token);
+            setUsername(data.username);
+        } catch (e: any) {
+            setLoginError(e.message || "Đăng nhập thất bại");
+        } finally {
+            setLoginLoading(false);
+        }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+
+        setToken("");
+        setUsername("");
+        setJob(null);
+        setLogs([]);
+        clearImages();
+    };
+
     const uploadImages = async (files: File[]) => {
         if (files.length === 0) {
             return [];
@@ -62,8 +124,13 @@ function App() {
         try {
             const res = await fetch(`${API}/api/videos/upload`, {
                 method: "POST",
+                headers: authHeaders(),
                 body: formData,
             });
+
+            if (res.status === 401 || res.status === 403) {
+                throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+            }
 
             if (!res.ok) {
                 throw new Error("Upload ảnh thất bại");
@@ -134,15 +201,21 @@ function App() {
         setImageFiles([]);
         setPreviewUrls([]);
         setUploadedImagePaths([]);
-        addLog("Đã xoá toàn bộ ảnh");
     };
 
     const createJob = async (imagePaths: string[]) => {
         const res = await fetch(`${API}/api/videos`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...authHeaders(),
+            },
             body: JSON.stringify({ productName, affiliateLink, imagePaths }),
         });
+
+        if (res.status === 401 || res.status === 403) {
+            throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+        }
 
         if (!res.ok) {
             throw new Error("Tạo job lỗi");
@@ -154,7 +227,13 @@ function App() {
     const pollJob = (jobId: string) => {
         const timer = setInterval(async () => {
             try {
-                const res = await fetch(`${API}/api/videos/${jobId}`);
+                const res = await fetch(`${API}/api/videos/${jobId}`, {
+                    headers: authHeaders(),
+                });
+
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+                }
 
                 if (!res.ok) {
                     throw new Error("Không lấy được trạng thái job");
@@ -220,6 +299,56 @@ function App() {
     const progress = job?.progress ?? 0;
     const currentStep = job?.currentStep || "Đang chờ xử lý";
 
+    if (!token) {
+        return (
+            <div style={s.loginPage}>
+                <div style={s.loginCard}>
+                    <div style={s.badge}>TikTok Affiliate Tool</div>
+                    <h1 style={s.loginTitle}>Đăng nhập</h1>
+                    <p style={s.subtitle}>Đăng nhập để tạo video AI TikTok Affiliate.</p>
+
+                    <label style={s.label}>Tài khoản</label>
+                    <input
+                        style={s.input}
+                        value={loginUsername}
+                        onChange={(e) => setLoginUsername(e.target.value)}
+                        placeholder="admin"
+                    />
+
+                    <label style={s.label}>Mật khẩu</label>
+                    <input
+                        style={s.input}
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="123456"
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") handleLogin();
+                        }}
+                    />
+
+                    {loginError && <div style={s.error}>{loginError}</div>}
+
+                    <button
+                        disabled={loginLoading}
+                        onClick={handleLogin}
+                        style={{
+                            ...s.button,
+                            width: "100%",
+                            marginTop: 20,
+                            opacity: loginLoading ? 0.6 : 1,
+                            cursor: loginLoading ? "not-allowed" : "pointer",
+                        }}
+                    >
+                        {loginLoading ? "Đang đăng nhập..." : "Đăng nhập"}
+                    </button>
+
+                    <div style={s.loginHint}>Demo: admin / 123456</div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div style={s.page}>
             <div style={s.container}>
@@ -228,23 +357,29 @@ function App() {
                         <div style={s.badge}>TikTok Affiliate Tool</div>
                         <h1 style={s.title}>AI Video Generator</h1>
                         <p style={s.subtitle}>
-                            Upload ảnh sản phẩm, AI tạo script, voice và render video tự động.
+                            Xin chào <b>{username}</b>, upload ảnh sản phẩm và render video tự động.
                         </p>
                     </div>
 
-                    {!isMobile && (
-                        <button
-                            disabled={loading || uploading}
-                            onClick={handleCreateVideo}
-                            style={{
-                                ...s.button,
-                                opacity: loading || uploading ? 0.55 : 1,
-                                cursor: loading || uploading ? "not-allowed" : "pointer",
-                            }}
-                        >
-                            {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
+                    <div style={s.headerActions}>
+                        <button type="button" onClick={handleLogout} style={s.logoutButton}>
+                            Đăng xuất
                         </button>
-                    )}
+
+                        {!isMobile && (
+                            <button
+                                disabled={loading || uploading}
+                                onClick={handleCreateVideo}
+                                style={{
+                                    ...s.button,
+                                    opacity: loading || uploading ? 0.55 : 1,
+                                    cursor: loading || uploading ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div style={s.grid}>
@@ -300,9 +435,7 @@ function App() {
                                                         : "#fdba74",
                                             }}
                                         >
-                                            {uploading
-                                                ? "Đang upload..."
-                                                : `Đã upload ${uploadedImagePaths.length}`}
+                                            {uploading ? "Đang upload..." : `Đã upload ${uploadedImagePaths.length}`}
                                         </span>
                                         <button type="button" onClick={clearImages} style={s.clearButton}>
                                             Xoá tất cả
@@ -420,6 +553,42 @@ function App() {
 
 function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
     return {
+        loginPage: {
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background:
+                "radial-gradient(circle at top left, rgba(236,72,153,0.22), transparent 32%), radial-gradient(circle at bottom right, rgba(249,115,22,0.18), transparent 32%), #070711",
+            color: "white",
+            fontFamily:
+                "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+            padding: 18,
+            boxSizing: "border-box",
+        },
+        loginCard: {
+            width: "100%",
+            maxWidth: 440,
+            background: "rgba(255,255,255,0.055)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 28,
+            padding: isMobile ? 22 : 30,
+            boxShadow: "0 30px 90px rgba(0,0,0,0.42)",
+            boxSizing: "border-box",
+        },
+        loginTitle: {
+            margin: "8px 0 0",
+            fontSize: 42,
+            lineHeight: 1,
+            fontWeight: 950,
+            letterSpacing: -1.5,
+        },
+        loginHint: {
+            marginTop: 16,
+            textAlign: "center",
+            color: "#94a3b8",
+            fontSize: 13,
+        },
         page: {
             minHeight: "100vh",
             width: "100%",
@@ -444,6 +613,12 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             gap: isMobile ? 16 : 24,
             alignItems: isMobile ? "stretch" : "flex-end",
             marginBottom: isMobile ? 18 : 28,
+        },
+        headerActions: {
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            justifyContent: isMobile ? "space-between" : "flex-end",
         },
         badge: {
             display: "inline-block",
@@ -477,6 +652,15 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             fontWeight: 900,
             fontSize: 16,
             boxShadow: "0 20px 50px rgba(219,39,119,0.25)",
+        },
+        logoutButton: {
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 16,
+            padding: "13px 18px",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontWeight: 800,
+            cursor: "pointer",
         },
         grid: {
             display: "grid",
