@@ -16,6 +16,16 @@ type VideoJob = {
 type LoginResponse = {
     token: string;
     username: string;
+    roles: string[];
+};
+
+type UserResponse = {
+    id: number;
+    username: string;
+    fullName?: string;
+    email?: string;
+    enabled: boolean;
+    roles: string[];
 };
 
 function App() {
@@ -25,10 +35,16 @@ function App() {
 
     const [token, setToken] = useState(localStorage.getItem("token") || "");
     const [username, setUsername] = useState(localStorage.getItem("username") || "");
+    const [roles, setRoles] = useState<string[]>(
+        JSON.parse(localStorage.getItem("roles") || "[]")
+    );
+
     const [loginUsername, setLoginUsername] = useState("admin");
     const [loginPassword, setLoginPassword] = useState("123456");
     const [loginLoading, setLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState("");
+
+    const [activeTab, setActiveTab] = useState<"video" | "admin">("video");
 
     const [productName, setProductName] = useState("");
     const [affiliateLink, setAffiliateLink] = useState("");
@@ -39,6 +55,17 @@ function App() {
     const [job, setJob] = useState<VideoJob | null>(null);
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
+
+    const [users, setUsers] = useState<UserResponse[]>([]);
+    const [newUsername, setNewUsername] = useState("");
+    const [newPassword, setNewPassword] = useState("123456");
+    const [newFullName, setNewFullName] = useState("");
+    const [newEmail, setNewEmail] = useState("");
+    const [newRole, setNewRole] = useState("USER");
+    const [adminLoading, setAdminLoading] = useState(false);
+    const [adminMessage, setAdminMessage] = useState("");
+
+    const isAdmin = roles.includes("ADMIN");
 
     useEffect(() => {
         const onResize = () => setIsMobile(window.innerWidth <= 768);
@@ -51,6 +78,12 @@ function App() {
             previewUrls.forEach((url) => URL.revokeObjectURL(url));
         };
     }, [previewUrls]);
+
+    useEffect(() => {
+        if (token && isAdmin && activeTab === "admin") {
+            loadUsers();
+        }
+    }, [token, activeTab]);
 
     const s = getStyles(isMobile);
 
@@ -69,9 +102,7 @@ function App() {
 
             const res = await fetch(`${API}/api/auth/login`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     username: loginUsername,
                     password: loginPassword,
@@ -86,9 +117,12 @@ function App() {
 
             localStorage.setItem("token", data.token);
             localStorage.setItem("username", data.username);
+            localStorage.setItem("roles", JSON.stringify(data.roles || []));
 
             setToken(data.token);
             setUsername(data.username);
+            setRoles(data.roles || []);
+            setActiveTab("video");
         } catch (e: any) {
             setLoginError(e.message || "Đăng nhập thất bại");
         } finally {
@@ -99,18 +133,19 @@ function App() {
     const handleLogout = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("username");
+        localStorage.removeItem("roles");
 
         setToken("");
         setUsername("");
+        setRoles([]);
         setJob(null);
         setLogs([]);
+        setUsers([]);
         clearImages();
     };
 
     const uploadImages = async (files: File[]) => {
-        if (files.length === 0) {
-            return [];
-        }
+        if (files.length === 0) return [];
 
         setUploading(true);
         addLog(`Bắt đầu upload ${files.length} ảnh`);
@@ -137,12 +172,7 @@ function App() {
             }
 
             const data = await res.json();
-
             const paths: string[] = data.imagePaths || data.images || [];
-
-            if (paths.length !== files.length) {
-                addLog(`Cảnh báo: chọn ${files.length} ảnh nhưng backend trả ${paths.length} ảnh`);
-            }
 
             setUploadedImagePaths(paths);
             addLog(`Upload hoàn tất ${paths.length} ảnh`);
@@ -295,6 +325,71 @@ function App() {
         }
     };
 
+    const loadUsers = async () => {
+        try {
+            setAdminLoading(true);
+            setAdminMessage("");
+
+            const res = await fetch(`${API}/api/admin/users`, {
+                headers: authHeaders(),
+            });
+
+            if (!res.ok) {
+                throw new Error("Không tải được danh sách user");
+            }
+
+            const data = (await res.json()) as UserResponse[];
+            setUsers(data);
+        } catch (e: any) {
+            setAdminMessage(e.message || "Lỗi tải user");
+        } finally {
+            setAdminLoading(false);
+        }
+    };
+
+    const handleCreateUser = async () => {
+        try {
+            if (!newUsername.trim()) return alert("Nhập username");
+            if (!newPassword.trim()) return alert("Nhập password");
+
+            setAdminLoading(true);
+            setAdminMessage("");
+
+            const res = await fetch(`${API}/api/admin/users`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...authHeaders(),
+                },
+                body: JSON.stringify({
+                    username: newUsername,
+                    password: newPassword,
+                    fullName: newFullName,
+                    email: newEmail,
+                    roles: [newRole],
+                }),
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || "Tạo user thất bại");
+            }
+
+            setAdminMessage("Tạo user thành công");
+            setNewUsername("");
+            setNewPassword("123456");
+            setNewFullName("");
+            setNewEmail("");
+            setNewRole("USER");
+
+            await loadUsers();
+        } catch (e: any) {
+            setAdminMessage(e.message || "Tạo user thất bại");
+        } finally {
+            setAdminLoading(false);
+        }
+    };
+
     const videoSrc = job?.videoUrl ? `${API}${job.videoUrl}` : "";
     const progress = job?.progress ?? 0;
     const currentStep = job?.currentStep || "Đang chờ xử lý";
@@ -343,7 +438,7 @@ function App() {
                         {loginLoading ? "Đang đăng nhập..." : "Đăng nhập"}
                     </button>
 
-                    <div style={s.loginHint}>Demo: admin / 123456</div>
+                    <div style={s.loginHint}>Admin mặc định: admin / 123456</div>
                 </div>
             </div>
         );
@@ -357,16 +452,40 @@ function App() {
                         <div style={s.badge}>TikTok Affiliate Tool</div>
                         <h1 style={s.title}>AI Video Generator</h1>
                         <p style={s.subtitle}>
-                            Xin chào <b>{username}</b>, upload ảnh sản phẩm và render video tự động.
+                            Xin chào <b>{username}</b> · Role: <b>{roles.join(", ")}</b>
                         </p>
                     </div>
 
                     <div style={s.headerActions}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab("video")}
+                            style={{
+                                ...s.tabButton,
+                                background: activeTab === "video" ? "rgba(236,72,153,0.24)" : "rgba(255,255,255,0.08)",
+                            }}
+                        >
+                            Video
+                        </button>
+
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab("admin")}
+                                style={{
+                                    ...s.tabButton,
+                                    background: activeTab === "admin" ? "rgba(236,72,153,0.24)" : "rgba(255,255,255,0.08)",
+                                }}
+                            >
+                                Admin
+                            </button>
+                        )}
+
                         <button type="button" onClick={handleLogout} style={s.logoutButton}>
                             Đăng xuất
                         </button>
 
-                        {!isMobile && (
+                        {!isMobile && activeTab === "video" && (
                             <button
                                 disabled={loading || uploading}
                                 onClick={handleCreateVideo}
@@ -382,176 +501,270 @@ function App() {
                     </div>
                 </div>
 
-                <div style={s.grid}>
-                    <div style={s.card}>
-                        <label style={s.label}>Tên sản phẩm</label>
-                        <input
-                            style={s.input}
-                            placeholder="Ví dụ: Áo bóng đá Bồ Đào Nha"
-                            value={productName}
-                            onChange={(e) => setProductName(e.target.value)}
-                        />
+                {activeTab === "admin" && isAdmin ? (
+                    <div style={s.adminGrid}>
+                        <div style={s.card}>
+                            <h2 style={s.sectionTitle}>Tạo user</h2>
 
-                        <label style={s.label}>Link Affiliate</label>
-                        <input
-                            style={s.input}
-                            placeholder="https://..."
-                            value={affiliateLink}
-                            onChange={(e) => setAffiliateLink(e.target.value)}
-                        />
-
-                        <label style={s.label}>Ảnh sản phẩm</label>
-                        <label style={s.uploadBox}>
-                            <div style={{ fontSize: isMobile ? 28 : 34 }}>📸</div>
-                            <div style={{ fontWeight: 800, marginTop: 8 }}>Chọn nhiều ảnh</div>
-                            <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
-                                PNG, JPG, WEBP
-                            </div>
+                            <label style={s.label}>Username</label>
                             <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={handleFileChange}
-                                style={{ display: "none" }}
+                                style={s.input}
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                placeholder="user1"
                             />
-                        </label>
 
-                        {previewUrls.length > 0 && (
-                            <div style={{ marginTop: 18 }}>
-                                <div style={s.previewHeader}>
-                                    <span>Preview ảnh</span>
-                                    <div style={s.previewActions}>
-                                        <span style={s.count}>{previewUrls.length} ảnh</span>
-                                        <span
-                                            style={{
-                                                ...s.count,
-                                                background:
-                                                    uploadedImagePaths.length === previewUrls.length
-                                                        ? "rgba(34,197,94,0.12)"
-                                                        : "rgba(249,115,22,0.12)",
-                                                color:
-                                                    uploadedImagePaths.length === previewUrls.length
-                                                        ? "#86efac"
-                                                        : "#fdba74",
-                                            }}
-                                        >
-                                            {uploading ? "Đang upload..." : `Đã upload ${uploadedImagePaths.length}`}
-                                        </span>
-                                        <button type="button" onClick={clearImages} style={s.clearButton}>
-                                            Xoá tất cả
-                                        </button>
-                                    </div>
-                                </div>
+                            <label style={s.label}>Password</label>
+                            <input
+                                style={s.input}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="123456"
+                            />
 
-                                <div style={s.previewGrid}>
-                                    {previewUrls.map((url, index) => (
-                                        <div key={url} style={s.thumb}>
-                                            <img src={url} style={s.thumbImg} />
-                                            <div style={s.index}>{index + 1}</div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeImage(index)}
-                                                style={s.removeButton}
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                            <label style={s.label}>Full name</label>
+                            <input
+                                style={s.input}
+                                value={newFullName}
+                                onChange={(e) => setNewFullName(e.target.value)}
+                                placeholder="Nguyễn Văn A"
+                            />
 
-                        {isMobile && (
+                            <label style={s.label}>Email</label>
+                            <input
+                                style={s.input}
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                placeholder="user@example.com"
+                            />
+
+                            <label style={s.label}>Role</label>
+                            <select
+                                style={s.input}
+                                value={newRole}
+                                onChange={(e) => setNewRole(e.target.value)}
+                            >
+                                <option value="USER">USER</option>
+                                <option value="ADMIN">ADMIN</option>
+                            </select>
+
+                            {adminMessage && <div style={s.adminMessage}>{adminMessage}</div>}
+
                             <button
-                                disabled={loading || uploading}
-                                onClick={handleCreateVideo}
+                                disabled={adminLoading}
+                                onClick={handleCreateUser}
                                 style={{
                                     ...s.button,
                                     width: "100%",
                                     marginTop: 18,
-                                    opacity: loading || uploading ? 0.55 : 1,
-                                    cursor: loading || uploading ? "not-allowed" : "pointer",
+                                    opacity: adminLoading ? 0.6 : 1,
                                 }}
                             >
-                                {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
+                                {adminLoading ? "Đang xử lý..." : "Tạo user"}
                             </button>
-                        )}
+                        </div>
 
-                        {job && (
-                            <div style={s.jobBox}>
-                                <div style={s.small}>Job ID</div>
-                                <div style={s.jobId}>{job.jobId}</div>
-
-                                <div style={s.progressHeader}>
-                                    <span>{currentStep}</span>
-                                    <b>{progress}%</b>
-                                </div>
-
-                                <div style={s.progressBar}>
-                                    <div style={{ ...s.progressFill, width: `${progress}%` }} />
-                                </div>
-
-                                <div style={s.small}>Status</div>
-                                <div
-                                    style={{
-                                        ...s.status,
-                                        color:
-                                            job.status === "DONE"
-                                                ? "#22c55e"
-                                                : job.status === "FAILED"
-                                                    ? "#ef4444"
-                                                    : "#f472b6",
-                                    }}
-                                >
-                                    {job.status}
-                                </div>
-
-                                {job.error && <div style={s.error}>{job.error}</div>}
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={s.main}>
-                        <div style={s.videoCard}>
+                        <div style={s.card}>
                             <div style={s.sectionHeader}>
-                                <h2 style={s.sectionTitle}>Video Preview</h2>
-                                {videoSrc && (
-                                    <a href={videoSrc} target="_blank" rel="noreferrer" style={s.link}>
-                                        Mở video
-                                    </a>
+                                <h2 style={s.sectionTitle}>Danh sách user</h2>
+                                <button onClick={loadUsers} style={s.logoutButton}>
+                                    Refresh
+                                </button>
+                            </div>
+
+                            <div style={s.userList}>
+                                {users.length === 0 ? (
+                                    <div style={s.emptyVideo}>Chưa có user</div>
+                                ) : (
+                                    users.map((user) => (
+                                        <div key={user.id} style={s.userItem}>
+                                            <div>
+                                                <div style={s.userName}>{user.username}</div>
+                                                <div style={s.userSub}>
+                                                    {user.fullName || "No name"} · {user.email || "No email"}
+                                                </div>
+                                            </div>
+                                            <div style={s.userRoles}>{user.roles.join(", ")}</div>
+                                        </div>
+                                    ))
                                 )}
                             </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={s.grid}>
+                        <div style={s.card}>
+                            <label style={s.label}>Tên sản phẩm</label>
+                            <input
+                                style={s.input}
+                                placeholder="Ví dụ: Áo bóng đá Bồ Đào Nha"
+                                value={productName}
+                                onChange={(e) => setProductName(e.target.value)}
+                            />
 
-                            {videoSrc ? (
-                                <video controls autoPlay src={videoSrc} style={s.video} />
-                            ) : (
-                                <div style={s.emptyVideo}>Video sẽ hiển thị ở đây</div>
+                            <label style={s.label}>Link Affiliate</label>
+                            <input
+                                style={s.input}
+                                placeholder="https://..."
+                                value={affiliateLink}
+                                onChange={(e) => setAffiliateLink(e.target.value)}
+                            />
+
+                            <label style={s.label}>Ảnh sản phẩm</label>
+                            <label style={s.uploadBox}>
+                                <div style={{ fontSize: isMobile ? 28 : 34 }}>📸</div>
+                                <div style={{ fontWeight: 800, marginTop: 8 }}>Chọn nhiều ảnh</div>
+                                <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
+                                    PNG, JPG, WEBP
+                                </div>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleFileChange}
+                                    style={{ display: "none" }}
+                                />
+                            </label>
+
+                            {previewUrls.length > 0 && (
+                                <div style={{ marginTop: 18 }}>
+                                    <div style={s.previewHeader}>
+                                        <span>Preview ảnh</span>
+                                        <div style={s.previewActions}>
+                                            <span style={s.count}>{previewUrls.length} ảnh</span>
+                                            <span
+                                                style={{
+                                                    ...s.count,
+                                                    background:
+                                                        uploadedImagePaths.length === previewUrls.length
+                                                            ? "rgba(34,197,94,0.12)"
+                                                            : "rgba(249,115,22,0.12)",
+                                                    color:
+                                                        uploadedImagePaths.length === previewUrls.length
+                                                            ? "#86efac"
+                                                            : "#fdba74",
+                                                }}
+                                            >
+                                                {uploading ? "Đang upload..." : `Đã upload ${uploadedImagePaths.length}`}
+                                            </span>
+                                            <button type="button" onClick={clearImages} style={s.clearButton}>
+                                                Xoá tất cả
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={s.previewGrid}>
+                                        {previewUrls.map((url, index) => (
+                                            <div key={url} style={s.thumb}>
+                                                <img src={url} style={s.thumbImg} />
+                                                <div style={s.index}>{index + 1}</div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeImage(index)}
+                                                    style={s.removeButton}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {isMobile && (
+                                <button
+                                    disabled={loading || uploading}
+                                    onClick={handleCreateVideo}
+                                    style={{
+                                        ...s.button,
+                                        width: "100%",
+                                        marginTop: 18,
+                                        opacity: loading || uploading ? 0.55 : 1,
+                                        cursor: loading || uploading ? "not-allowed" : "pointer",
+                                    }}
+                                >
+                                    {uploading ? "Đang upload ảnh..." : loading ? "Đang tạo..." : "🚀 Generate Video"}
+                                </button>
+                            )}
+
+                            {job && (
+                                <div style={s.jobBox}>
+                                    <div style={s.small}>Job ID</div>
+                                    <div style={s.jobId}>{job.jobId}</div>
+
+                                    <div style={s.progressHeader}>
+                                        <span>{currentStep}</span>
+                                        <b>{progress}%</b>
+                                    </div>
+
+                                    <div style={s.progressBar}>
+                                        <div style={{ ...s.progressFill, width: `${progress}%` }} />
+                                    </div>
+
+                                    <div style={s.small}>Status</div>
+                                    <div
+                                        style={{
+                                            ...s.status,
+                                            color:
+                                                job.status === "DONE"
+                                                    ? "#22c55e"
+                                                    : job.status === "FAILED"
+                                                        ? "#ef4444"
+                                                        : "#f472b6",
+                                        }}
+                                    >
+                                        {job.status}
+                                    </div>
+
+                                    {job.error && <div style={s.error}>{job.error}</div>}
+                                </div>
                             )}
                         </div>
 
-                        <div style={s.sideGrid}>
-                            <div style={s.panel}>
-                                <h3 style={s.panelTitle}>Script</h3>
-                                <div style={s.script}>{job?.script || "Chưa có script"}</div>
+                        <div style={s.main}>
+                            <div style={s.videoCard}>
+                                <div style={s.sectionHeader}>
+                                    <h2 style={s.sectionTitle}>Video Preview</h2>
+                                    {videoSrc && (
+                                        <a href={videoSrc} target="_blank" rel="noreferrer" style={s.link}>
+                                            Mở video
+                                        </a>
+                                    )}
+                                </div>
+
+                                {videoSrc ? (
+                                    <video controls autoPlay src={videoSrc} style={s.video} />
+                                ) : (
+                                    <div style={s.emptyVideo}>Video sẽ hiển thị ở đây</div>
+                                )}
                             </div>
 
-                            <div style={s.panel}>
-                                <h3 style={s.panelTitle}>Logs</h3>
-                                <div style={s.logBox}>
-                                    {logs.length === 0
-                                        ? "Chưa có log"
-                                        : logs.map((item, i) => <div key={i}>{item}</div>)}
+                            <div style={s.sideGrid}>
+                                <div style={s.panel}>
+                                    <h3 style={s.panelTitle}>Script</h3>
+                                    <div style={s.script}>{job?.script || "Chưa có script"}</div>
+                                </div>
+
+                                <div style={s.panel}>
+                                    <h3 style={s.panelTitle}>Logs</h3>
+                                    <div style={s.logBox}>
+                                        {logs.length === 0
+                                            ? "Chưa có log"
+                                            : logs.map((item, i) => <div key={i}>{item}</div>)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
 }
 
 function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
+    const card = cardStyle(isMobile);
+
     return {
         loginPage: {
             minHeight: "100vh",
@@ -618,7 +831,16 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             display: "flex",
             alignItems: "center",
             gap: 12,
+            flexWrap: "wrap",
             justifyContent: isMobile ? "space-between" : "flex-end",
+        },
+        tabButton: {
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 16,
+            padding: "13px 18px",
+            color: "white",
+            fontWeight: 800,
+            cursor: "pointer",
         },
         badge: {
             display: "inline-block",
@@ -669,15 +891,21 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             alignItems: "start",
             width: "100%",
         },
-        card: cardStyle(isMobile),
+        adminGrid: {
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "420px 1fr",
+            gap: 24,
+            alignItems: "start",
+        },
+        card,
         main: {
             display: "grid",
             gridTemplateColumns: isMobile ? "1fr" : "1fr 340px",
             gap: isMobile ? 18 : 24,
             minWidth: 0,
         },
-        videoCard: cardStyle(isMobile),
-        panel: cardStyle(isMobile),
+        videoCard: card,
+        panel: card,
         label: {
             display: "block",
             color: "#94a3b8",
@@ -839,6 +1067,15 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             borderRadius: 12,
             fontSize: 13,
         },
+        adminMessage: {
+            marginTop: 14,
+            color: "#bfdbfe",
+            background: "rgba(59,130,246,0.12)",
+            border: "1px solid rgba(59,130,246,0.22)",
+            padding: 10,
+            borderRadius: 12,
+            fontSize: 13,
+        },
         sectionHeader: {
             display: "flex",
             justifyContent: "space-between",
@@ -867,7 +1104,7 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             display: "block",
         },
         emptyVideo: {
-            height: isMobile ? 380 : 640,
+            height: isMobile ? 180 : 260,
             borderRadius: 22,
             border: "1px dashed rgba(255,255,255,0.12)",
             background: "#020617",
@@ -912,6 +1149,34 @@ function getStyles(isMobile: boolean): Record<string, React.CSSProperties> {
             fontSize: 12,
             lineHeight: 1.6,
             boxSizing: "border-box",
+        },
+        userList: {
+            display: "grid",
+            gap: 12,
+        },
+        userItem: {
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 14,
+            padding: 14,
+            borderRadius: 16,
+            background: "#020617",
+            border: "1px solid rgba(255,255,255,0.08)",
+        },
+        userName: {
+            fontWeight: 900,
+            fontSize: 16,
+        },
+        userSub: {
+            color: "#94a3b8",
+            fontSize: 13,
+            marginTop: 4,
+        },
+        userRoles: {
+            color: "#f9a8d4",
+            fontWeight: 900,
+            fontSize: 13,
+            whiteSpace: "nowrap",
         },
     };
 }
