@@ -22,3 +22,11 @@ export type VideoPage = {
     first: boolean;
     last: boolean;
 };
+
+export type VideoQuota = {
+    dailyLimit: number;
+    usedToday: number;
+    extraToday: number;
+    totalToday: number;
+    remainingToday: number;
+};

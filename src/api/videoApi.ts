@@ -1,5 +1,5 @@
 import { API, authHeaders, handleAuthError } from "./config";
-import type { VideoJob, VideoPage } from "../types/video";
+import type {VideoJob, VideoPage, VideoQuota} from "../types/video";
 
 export async function createVideoApi(
     token: string,
@@ -52,6 +52,20 @@ export async function getVideoHistoryApi(
 
     if (!res.ok) {
         throw new Error("Không tải được lịch sử video");
+    }
+
+    return res.json();
+}
+
+export async function getVideoQuotaApi(token: string): Promise<VideoQuota> {
+    const res = await fetch(`${API}/api/videos/quota`, {
+        headers: authHeaders(token),
+    });
+
+    await handleAuthError(res);
+
+    if (!res.ok) {
+        throw new Error("Không tải được quota video");
     }
 
     return res.json();
