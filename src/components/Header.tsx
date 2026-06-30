@@ -27,7 +27,8 @@ export default function Header({
                 <div style={s.badge}>TikTok Affiliate Tool</div>
                 <h1 style={s.title}>AI Video Generator</h1>
                 <p style={s.subtitle}>
-                    Xin chào <b>{username}</b> · Role: <b>{roles.join(", ")}</b>
+                    Xin chào <b>{username}</b> · Role:{" "}
+                    <b>{roles.join(", ") || "USER"}</b>
                 </p>
             </div>
 

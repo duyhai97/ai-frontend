@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import Header from "./components/Header";
 import type { AppTab } from "./components/Header";
-
 import LoginPage from "./components/LoginPage";
 import VideoGenerator from "./components/VideoGenerator";
 import VideoHistory from "./components/VideoHistory";
@@ -18,14 +17,19 @@ export default function App() {
     const auth = useAuth();
 
     useEffect(() => {
-        const resize = () => {
-            setIsMobile(window.innerWidth <= 768);
-        };
-
+        const resize = () => setIsMobile(window.innerWidth <= 768);
         window.addEventListener("resize", resize);
-
         return () => window.removeEventListener("resize", resize);
     }, []);
+
+    useEffect(() => {
+        if (!auth.token) return;
+
+        // User thường không được ở tab admin
+        if (!auth.isAdmin && activeTab === "admin") {
+            setActiveTab("video");
+        }
+    }, [auth.token, auth.isAdmin, activeTab]);
 
     const styles = getStyles(isMobile);
 
@@ -34,7 +38,10 @@ export default function App() {
             <LoginPage
                 isMobile={isMobile}
                 styles={styles}
-                onLoginSuccess={auth.login}
+                onLoginSuccess={(data) => {
+                    auth.login(data);
+                    setActiveTab("video");
+                }}
             />
         );
     }
@@ -48,7 +55,10 @@ export default function App() {
                     activeTab={activeTab}
                     isAdmin={auth.isAdmin}
                     onChangeTab={setActiveTab}
-                    onLogout={auth.logout}
+                    onLogout={() => {
+                        auth.logout();
+                        setActiveTab("video");
+                    }}
                     styles={styles}
                 />
 
