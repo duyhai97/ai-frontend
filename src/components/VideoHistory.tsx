@@ -60,16 +60,26 @@ export default function VideoHistory({ token, styles: s }: Props) {
                             width: "100%",
                             borderCollapse: "collapse",
                             tableLayout: "fixed",
+                            textAlign: "left",
                         }}
                     >
+                        <colgroup>
+                            <col style={{ width: "22%" }} />
+                            <col style={{ width: "14%" }} />
+                            <col style={{ width: "22%" }} />
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "12%" }} />
+                            <col style={{ width: "18%" }} />
+                        </colgroup>
+
                         <thead>
                         <tr>
-                            <Th label="Sản phẩm" width="22%" />
-                            <Th label="Người tạo" width="14%" />
-                            <Th label="Ngày tạo" width="22%" />
-                            <Th label="Status" width="12%" />
-                            <Th label="Progress" width="12%" />
-                            <Th label="Video" width="18%" />
+                            <Th label="Sản phẩm" />
+                            <Th label="Người tạo" />
+                            <Th label="Ngày tạo" />
+                            <Th label="Status" />
+                            <Th label="Progress" />
+                            <Th label="Video" />
                         </tr>
                         </thead>
 
@@ -94,7 +104,7 @@ export default function VideoHistory({ token, styles: s }: Props) {
                                                 href={videoUrl}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                style={s.link}
+                                                style={videoButtonStyle}
                                             >
                                                 Xem video
                                             </a>
@@ -110,28 +120,20 @@ export default function VideoHistory({ token, styles: s }: Props) {
                 </div>
             )}
 
-            <div
-                style={{
-                    marginTop: 18,
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: 14,
-                }}
-            >
+            <div style={paginationStyle}>
                 <button
                     disabled={page <= 0}
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
                     style={{
                         ...s.logoutButton,
-                        opacity: page <= 0 ? 0.5 : 1,
+                        opacity: page <= 0 ? 0.45 : 1,
                         cursor: page <= 0 ? "not-allowed" : "pointer",
                     }}
                 >
                     Previous
                 </button>
 
-                <span style={{ color: "#cbd5e1", fontWeight: 800 }}>
+                <span style={pageTextStyle}>
                     Page {page + 1} / {Math.max(totalPages, 1)}
                 </span>
 
@@ -140,7 +142,7 @@ export default function VideoHistory({ token, styles: s }: Props) {
                     onClick={() => setPage((p) => p + 1)}
                     style={{
                         ...s.logoutButton,
-                        opacity: page + 1 >= totalPages ? 0.5 : 1,
+                        opacity: page + 1 >= totalPages ? 0.45 : 1,
                         cursor: page + 1 >= totalPages ? "not-allowed" : "pointer",
                     }}
                 >
@@ -165,17 +167,17 @@ function buildVideoUrl(videoUrl?: string): string {
     return `${API}/${videoUrl}`;
 }
 
-function Th({ label, width }: { label: string; width: string }) {
+function Th({ label }: { label: string }) {
     return (
         <th
             style={{
-                width,
                 textAlign: "left",
                 color: "#94a3b8",
                 fontSize: 13,
-                padding: "12px 14px",
+                padding: "12px 24px",
                 borderBottom: "1px solid rgba(255,255,255,0.12)",
                 whiteSpace: "nowrap",
+                verticalAlign: "middle",
             }}
         >
             {label}
@@ -187,7 +189,7 @@ function Td({ children }: { children: React.ReactNode }) {
     return (
         <td
             style={{
-                padding: "16px 14px",
+                padding: "16px 24px",
                 borderBottom: "1px solid rgba(255,255,255,0.08)",
                 color: "#e5e7eb",
                 fontSize: 14,
@@ -195,6 +197,7 @@ function Td({ children }: { children: React.ReactNode }) {
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                textAlign: "left",
             }}
         >
             {children}
@@ -223,5 +226,33 @@ function statusStyle(status: string): React.CSSProperties {
     return {
         color,
         fontWeight: 900,
+        textAlign: "left",
     };
 }
+
+const videoButtonStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 120,
+    padding: "8px 16px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.1)",
+    color: "white",
+    fontWeight: 800,
+    textDecoration: "none",
+};
+
+const paginationStyle: React.CSSProperties = {
+    marginTop: 22,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 14,
+};
+
+const pageTextStyle: React.CSSProperties = {
+    color: "#e5e7eb",
+    fontWeight: 900,
+    fontSize: 18,
+};
