@@ -1,6 +1,12 @@
 import type React from "react";
 
-export type AppTab = "video" | "history" | "admin";
+export type AppTab =
+    | "dashboard"
+    | "video"
+    | "history"
+    | "myPurchases"
+    | "purchases"
+    | "admin";
 
 type Props = {
     username: string;
@@ -34,6 +40,13 @@ export default function Header({
 
             <div style={s.headerActions}>
                 <TabButton
+                    label="Dashboard"
+                    active={activeTab === "dashboard"}
+                    onClick={() => onChangeTab("dashboard")}
+                    styles={s}
+                />
+
+                <TabButton
                     label="Video"
                     active={activeTab === "video"}
                     onClick={() => onChangeTab("video")}
@@ -47,13 +60,29 @@ export default function Header({
                     styles={s}
                 />
 
+                <TabButton
+                    label="My Purchases"
+                    active={activeTab === "myPurchases"}
+                    onClick={() => onChangeTab("myPurchases")}
+                    styles={s}
+                />
+
                 {isAdmin && (
-                    <TabButton
-                        label="Admin"
-                        active={activeTab === "admin"}
-                        onClick={() => onChangeTab("admin")}
-                        styles={s}
-                    />
+                    <>
+                        <TabButton
+                            label="Purchases"
+                            active={activeTab === "purchases"}
+                            onClick={() => onChangeTab("purchases")}
+                            styles={s}
+                        />
+
+                        <TabButton
+                            label="Admin"
+                            active={activeTab === "admin"}
+                            onClick={() => onChangeTab("admin")}
+                            styles={s}
+                        />
+                    </>
                 )}
 
                 <button type="button" onClick={onLogout} style={s.logoutButton}>

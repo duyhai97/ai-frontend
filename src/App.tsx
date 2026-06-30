@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 
 import Header from "./components/Header";
 import type { AppTab } from "./components/Header";
+
 import LoginPage from "./components/LoginPage";
+import Dashboard from "./components/Dashboard";
 import VideoGenerator from "./components/VideoGenerator";
 import VideoHistory from "./components/VideoHistory";
+import MyPurchases from "./components/MyPurchases";
+import AdminPurchases from "./components/AdminPurchases";
 import AdminUsers from "./components/AdminUsers";
 
 import { useAuth } from "./hooks/useAuth";
@@ -25,8 +29,10 @@ export default function App() {
     useEffect(() => {
         if (!auth.token) return;
 
-        // User thường không được ở tab admin
-        if (!auth.isAdmin && activeTab === "admin") {
+        if (
+            !auth.isAdmin &&
+            (activeTab === "admin" || activeTab === "purchases")
+        ) {
             setActiveTab("video");
         }
     }, [auth.token, auth.isAdmin, activeTab]);
@@ -62,6 +68,15 @@ export default function App() {
                     styles={styles}
                 />
 
+                {activeTab === "dashboard" && (
+                    <Dashboard
+                        username={auth.username}
+                        roles={auth.roles}
+                        isAdmin={auth.isAdmin}
+                        styles={styles}
+                    />
+                )}
+
                 {activeTab === "video" && (
                     <VideoGenerator
                         token={auth.token}
@@ -72,6 +87,20 @@ export default function App() {
 
                 {activeTab === "history" && (
                     <VideoHistory
+                        token={auth.token}
+                        styles={styles}
+                    />
+                )}
+
+                {activeTab === "myPurchases" && (
+                    <MyPurchases
+                        token={auth.token}
+                        styles={styles}
+                    />
+                )}
+
+                {activeTab === "purchases" && auth.isAdmin && (
+                    <AdminPurchases
                         token={auth.token}
                         styles={styles}
                     />
