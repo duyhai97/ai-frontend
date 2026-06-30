@@ -9,14 +9,12 @@ type Props = {
     token: string;
     isMobile: boolean;
     styles: Record<string, React.CSSProperties>;
-    onStateChange?: (state: { loading: boolean; uploading: boolean; createVideo: () => void }) => void;
 };
 
 export default function VideoGenerator({
                                            token,
                                            isMobile,
                                            styles: s,
-                                           onStateChange,
                                        }: Props) {
     const [productName, setProductName] = useState("");
     const [affiliateLink, setAffiliateLink] = useState("");
@@ -62,15 +60,7 @@ export default function VideoGenerator({
         }
     };
 
-    if (onStateChange) {
-        onStateChange({
-            loading,
-            uploading,
-            createVideo: handleCreateVideo,
-        });
-    }
-
-    const videoSrc = job?.videoUrl ? `${API}${job.videoUrl}` : "";
+    const videoSrc = job?.videoUrl ? buildVideoUrl(job.videoUrl) : "";
 
     return (
         <div style={s.grid}>
@@ -147,7 +137,7 @@ export default function VideoGenerator({
                         <div style={s.previewGrid}>
                             {previewUrls.map((url, index) => (
                                 <div key={url} style={s.thumb}>
-                                    <img src={url} style={s.thumbImg} />
+                                    <img src={url} style={s.thumbImg} alt={`preview-${index}`} />
                                     <div style={s.index}>{index + 1}</div>
 
                                     <button
@@ -163,25 +153,23 @@ export default function VideoGenerator({
                     </div>
                 )}
 
-                {isMobile && (
-                    <button
-                        disabled={loading || uploading}
-                        onClick={handleCreateVideo}
-                        style={{
-                            ...s.button,
-                            width: "100%",
-                            marginTop: 18,
-                            opacity: loading || uploading ? 0.55 : 1,
-                            cursor: loading || uploading ? "not-allowed" : "pointer",
-                        }}
-                    >
-                        {uploading
-                            ? "Đang upload ảnh..."
-                            : loading
-                                ? "Đang tạo..."
-                                : "🚀 Generate Video"}
-                    </button>
-                )}
+                <button
+                    disabled={loading || uploading}
+                    onClick={handleCreateVideo}
+                    style={{
+                        ...s.button,
+                        width: "100%",
+                        marginTop: 18,
+                        opacity: loading || uploading ? 0.55 : 1,
+                        cursor: loading || uploading ? "not-allowed" : "pointer",
+                    }}
+                >
+                    {uploading
+                        ? "Đang upload ảnh..."
+                        : loading
+                            ? "Đang tạo..."
+                            : "🚀 Generate Video"}
+                </button>
 
                 <ProgressPanel job={job} styles={s} />
             </div>
@@ -228,4 +216,10 @@ export default function VideoGenerator({
             </div>
         </div>
     );
+}
+
+function buildVideoUrl(videoUrl: string): string {
+    if (videoUrl.startsWith("http")) return videoUrl;
+    if (videoUrl.startsWith("/")) return `${API}${videoUrl}`;
+    return `${API}/${videoUrl}`;
 }

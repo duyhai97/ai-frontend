@@ -7,12 +7,8 @@ type Props = {
     roles: string[];
     activeTab: AppTab;
     isAdmin: boolean;
-    isMobile: boolean;
-    loading: boolean;
-    uploading: boolean;
     onChangeTab: (tab: AppTab) => void;
     onLogout: () => void;
-    onCreateVideo: () => void;
     styles: Record<string, React.CSSProperties>;
 };
 
@@ -21,72 +17,50 @@ export default function Header({
                                    roles,
                                    activeTab,
                                    isAdmin,
-                                   isMobile,
-                                   loading,
-                                   uploading,
                                    onChangeTab,
                                    onLogout,
-                                   onCreateVideo,
                                    styles: s,
                                }: Props) {
     return (
         <div style={s.header}>
-        <div>
-            <div style={s.badge}>TikTok Affiliate Tool</div>
-    <h1 style={s.title}>AI Video Generator</h1>
-    <p style={s.subtitle}>
-        Xin chào <b>{username}</b> · Role: <b>{roles.join(", ")}</b>
-    </p>
-    </div>
+            <div>
+                <div style={s.badge}>TikTok Affiliate Tool</div>
+                <h1 style={s.title}>AI Video Generator</h1>
+                <p style={s.subtitle}>
+                    Xin chào <b>{username}</b> · Role: <b>{roles.join(", ")}</b>
+                </p>
+            </div>
 
-    <div style={s.headerActions}>
-    <TabButton
-        label="Video"
-    active={activeTab === "video"}
-    onClick={() => onChangeTab("video")}
-    styles={s}
-    />
+            <div style={s.headerActions}>
+                <TabButton
+                    label="Video"
+                    active={activeTab === "video"}
+                    onClick={() => onChangeTab("video")}
+                    styles={s}
+                />
 
-    <TabButton
-    label="History"
-    active={activeTab === "history"}
-    onClick={() => onChangeTab("history")}
-    styles={s}
-    />
+                <TabButton
+                    label="History"
+                    active={activeTab === "history"}
+                    onClick={() => onChangeTab("history")}
+                    styles={s}
+                />
 
-    {isAdmin && (
-        <TabButton
-            label="Admin"
-        active={activeTab === "admin"}
-        onClick={() => onChangeTab("admin")}
-        styles={s}
-        />
-    )}
+                {isAdmin && (
+                    <TabButton
+                        label="Admin"
+                        active={activeTab === "admin"}
+                        onClick={() => onChangeTab("admin")}
+                        styles={s}
+                    />
+                )}
 
-    <button type="button" onClick={onLogout} style={s.logoutButton}>
-        Đăng xuất
-    </button>
-
-    {!isMobile && activeTab === "video" && (
-        <button
-            disabled={loading || uploading}
-        onClick={onCreateVideo}
-        style={{
-    ...s.button,
-            opacity: loading || uploading ? 0.55 : 1,
-            cursor: loading || uploading ? "not-allowed" : "pointer",
-    }}
-    >
-        {uploading
-            ? "Đang upload ảnh..."
-            : loading
-                ? "Đang tạo..."
-                : "🚀 Generate Video"}
-        </button>
-    )}
-    </div>
-    </div>
-);
+                <button type="button" onClick={onLogout} style={s.logoutButton}>
+                    Đăng xuất
+                </button>
+            </div>
+        </div>
+    );
 }
 
 function TabButton({
@@ -103,15 +77,15 @@ function TabButton({
     return (
         <button
             type="button"
-    onClick={onClick}
-    style={{
-    ...s.tabButton,
-            background: active
-            ? "rgba(236,72,153,0.24)"
-            : "rgba(255,255,255,0.08)",
-    }}
->
-    {label}
-    </button>
-);
+            onClick={onClick}
+            style={{
+                ...s.tabButton,
+                background: active
+                    ? "rgba(236,72,153,0.24)"
+                    : "rgba(255,255,255,0.08)",
+            }}
+        >
+            {label}
+        </button>
+    );
 }
