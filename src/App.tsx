@@ -5,7 +5,7 @@ import type { AppTab } from "./components/Header";
 
 import LoginPage from "./components/LoginPage";
 import Dashboard from "./components/Dashboard";
-import VideoGenerator from "./components/VideoGenerator";
+import VideoGenerator from "./components/video/VideoGenerator.tsx";
 import VideoHistory from "./components/VideoHistory";
 import MyPurchases from "./components/MyPurchases";
 import AdminPurchases from "./components/AdminPurchases";

@@ -1,5 +1,5 @@
 import type React from "react";
-import type { VideoJob } from "../types/video";
+import type { VideoJob } from "../../types/video.ts";
 
 type Props = {
     job: VideoJob | null;

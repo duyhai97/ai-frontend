@@ -1,25 +1,43 @@
 import { API, authHeaders, handleAuthError } from "./config";
-import type {VideoJob, VideoPage, VideoQuota} from "../types/video";
+import type {
+    CreateVideoRequest,
+    VideoCategory,
+    VideoJob,
+    VideoPage,
+    VideoQuota,
+    VideoStyle,
+} from "../types/video";
 
 export async function createVideoApi(
     token: string,
     productName: string,
     affiliateLink: string,
-    imagePaths: string[]
+    imagePaths: string[],
+    style: VideoStyle = "REVIEW",
+    category: VideoCategory = "GENERAL"
 ): Promise<VideoJob> {
+    const body: CreateVideoRequest & { imagePaths: string[] } = {
+        productName,
+        affiliateLink,
+        imagePaths,
+        style,
+        category,
+    };
+
     const res = await fetch(`${API}/api/videos`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             ...authHeaders(token),
         },
-        body: JSON.stringify({ productName, affiliateLink, imagePaths }),
+        body: JSON.stringify(body),
     });
 
     await handleAuthError(res);
 
     if (!res.ok) {
-        throw new Error("Tạo job lỗi");
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Tạo job lỗi");
     }
 
     return res.json();

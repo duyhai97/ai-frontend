@@ -1,15 +1,11 @@
-import { useEffect, useState } from "react";
+import { API } from "../../api/config.ts";
+import { useVideoCreator } from "../../hooks/video/useVideoCreator.ts";
 
-import { API } from "../api/config";
-import { getVideoQuotaApi } from "../api/videoApi";
-import { useUpload } from "../hooks/useUpload";
-import { useVideoJob } from "../hooks/useVideoJob";
-
-import ProgressPanel from "./ProgressPanel";
-import QuotaBox from "./QuotaBox";
+import ProductForm from "./ProductForm.tsx";
+import ProgressPanel from "./ProgressPanel.tsx";
+import QuotaBox from "./QuotaBox.tsx";
 
 import type React from "react";
-import type { VideoQuota } from "../types/video";
 
 type Props = {
     token: string;
@@ -22,70 +18,32 @@ export default function VideoGenerator({
                                            isMobile,
                                            styles: s,
                                        }: Props) {
-    const [productName, setProductName] = useState("");
-    const [affiliateLink, setAffiliateLink] = useState("");
-    const [logs, setLogs] = useState<string[]>([]);
-    const [quota, setQuota] = useState<VideoQuota | null>(null);
-
-    const addLog = (msg: string) => {
-        setLogs((old) => [`${new Date().toLocaleTimeString()} - ${msg}`, ...old]);
-    };
+    const {
+        productName,
+        setProductName,
+        affiliateLink,
+        setAffiliateLink,
+        style,
+        setStyle,
+        category,
+        setCategory,
+        logs,
+        quota,
+        upload,
+        videoJob,
+        handleCreateVideo,
+    } = useVideoCreator(token);
 
     const {
-        imageFiles,
         previewUrls,
         uploadedImagePaths,
         uploading,
-        uploadImages,
         handleFileChange,
         removeImage,
         clearImages,
-    } = useUpload(token, addLog);
+    } = upload;
 
-    const { job, loading, setLoading, createJob } = useVideoJob(token, addLog);
-
-    const loadQuota = async () => {
-        try {
-            const data = await getVideoQuotaApi(token);
-            setQuota(data);
-        } catch (e: any) {
-            addLog(e.message || "Không tải được quota");
-        }
-    };
-
-    useEffect(() => {
-        loadQuota();
-    }, []);
-
-    const handleCreateVideo = async () => {
-        try {
-            if (!productName.trim()) return alert("Nhập tên sản phẩm");
-            if (imageFiles.length === 0) return alert("Chọn ít nhất 1 ảnh");
-            if (uploading) return alert("Ảnh đang upload, đợi upload xong đã");
-
-            if (quota && quota.dailyLimit !== -1 && quota.remainingToday <= 0) {
-                return alert("Bạn đã hết lượt tạo video hôm nay. Vui lòng mua thêm lượt.");
-            }
-
-            let imagePaths = uploadedImagePaths;
-
-            if (imagePaths.length !== imageFiles.length) {
-                imagePaths = await uploadImages(imageFiles);
-            }
-
-            if (imagePaths.length === 0) {
-                throw new Error("Chưa upload được ảnh");
-            }
-
-            await createJob(productName, affiliateLink, imagePaths);
-            await loadQuota();
-        } catch (e: any) {
-            addLog(e.message || "Có lỗi xảy ra");
-            alert(e.message || "Có lỗi xảy ra");
-            setLoading(false);
-            await loadQuota();
-        }
-    };
+    const { job, loading } = videoJob;
 
     const videoSrc = job?.videoUrl ? buildVideoUrl(job.videoUrl) : "";
 
@@ -137,23 +95,20 @@ export default function VideoGenerator({
 
                 <QuotaBox quota={quota} styles={s} />
 
-                <label style={s.label}>Tên sản phẩm</label>
-                <input
-                    style={s.input}
-                    placeholder="Ví dụ: Áo bóng đá Bồ Đào Nha"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                />
-
-                <label style={s.label}>Link Affiliate</label>
-                <input
-                    style={s.input}
-                    placeholder="https://..."
-                    value={affiliateLink}
-                    onChange={(e) => setAffiliateLink(e.target.value)}
+                <ProductForm
+                    productName={productName}
+                    affiliateLink={affiliateLink}
+                    style={style}
+                    category={category}
+                    setProductName={setProductName}
+                    setAffiliateLink={setAffiliateLink}
+                    setStyle={setStyle}
+                    setCategory={setCategory}
+                    styles={s}
                 />
 
                 <label style={s.label}>Ảnh sản phẩm</label>
+
                 <label
                     style={{
                         ...s.uploadBox,
@@ -167,7 +122,9 @@ export default function VideoGenerator({
                     }}
                 >
                     <div style={{ fontSize: isMobile ? 30 : 38 }}>📸</div>
-                    <div style={{ fontWeight: 900, marginTop: 8 }}>Chọn nhiều ảnh</div>
+                    <div style={{ fontWeight: 900, marginTop: 8 }}>
+                        Chọn nhiều ảnh
+                    </div>
                     <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
                         PNG, JPG, WEBP · Nên chọn 4-8 ảnh
                     </div>
@@ -270,7 +227,7 @@ export default function VideoGenerator({
                         ? "Đang upload ảnh..."
                         : loading
                             ? "Đang tạo video..."
-                            : "🚀 Generate Video"}
+                            : `🚀 Generate Video (${style})`}
                 </button>
 
                 <ProgressPanel job={job} styles={s} />

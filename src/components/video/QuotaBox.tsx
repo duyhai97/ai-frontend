@@ -1,5 +1,5 @@
 import type React from "react";
-import type { VideoQuota } from "../types/video";
+import type { VideoQuota } from "../../types/video.ts";
 
 type Props = {
     quota: VideoQuota | null;

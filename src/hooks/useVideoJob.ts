@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { createVideoApi, getVideoJobApi } from "../api/videoApi";
-import type { VideoJob } from "../types/video";
+import type {
+    VideoCategory,
+    VideoJob,
+    VideoStyle,
+} from "../types/video";
 
 export function useVideoJob(token: string, addLog: (msg: string) => void) {
     const [job, setJob] = useState<VideoJob | null>(null);
@@ -38,18 +42,23 @@ export function useVideoJob(token: string, addLog: (msg: string) => void) {
     const createJob = async (
         productName: string,
         affiliateLink: string,
-        imagePaths: string[]
+        imagePaths: string[],
+        style: VideoStyle = "REVIEW",
+        category: VideoCategory = "GENERAL"
     ) => {
         setLoading(true);
         setJob(null);
 
         addLog(`Tạo job video với ${imagePaths.length} ảnh`);
+        addLog(`Style: ${style} · Category: ${category}`);
 
         const createdJob = await createVideoApi(
             token,
             productName,
             affiliateLink,
-            imagePaths
+            imagePaths,
+            style,
+            category
         );
 
         setJob(createdJob);
